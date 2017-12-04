@@ -21,13 +21,15 @@ Option Explicit
 
 
 Global crc As New clsCrc
-Global sort As New CAlphaSort
+Global Sort As New CAlphaSort
 Global dlg As New clsCmnDlg
 Global fso As New CFileSystem2
 Global wHash As New CWinHash
 Global HighLightRunning As Boolean
 
 Const LANG_US = 1049
+
+
 
 Sub rtfHighlightDecompile(c_src As String, tb As RichTextBox)
     
@@ -54,7 +56,7 @@ Sub rtfHighlightDecompile(c_src As String, tb As RichTextBox)
     
    'color code comments..
     For i = 0 To UBound(tmp)
-        x = Trim(tmp(i))
+        x = trim(tmp(i))
         
         a = InStr(tmp(i), "//")
         If a > 0 Then 'comment
@@ -134,7 +136,7 @@ Sub rtfHighlightAsm(asm As String, c As CFunction, tb As RichTextBox)
     
     'first we add line breaks for comments and indents for code..
     For i = 0 To UBound(tmp)
-        x = Trim(tmp(i))
+        x = trim(tmp(i))
         If right(x, 1) = ":" Then 'label
             tmp(i) = vbCrLf & x
         Else
@@ -151,7 +153,7 @@ Sub rtfHighlightAsm(asm As String, c As CFunction, tb As RichTextBox)
     
    'now we highlight
     For i = 0 To UBound(tmp)
-        x = Trim(tmp(i))
+        x = trim(tmp(i))
         
         If left(x, 1) = "j" Then 'isjump
             tb.selStart = curPos
@@ -265,7 +267,7 @@ Public Sub LV_ColumnSort(ListViewControl As ListView, Column As ColumnHeader)
               .SortOrder = lvwAscending
              End If
        End If
-       .Sorted = -1
+       .sorted = -1
     End With
 End Sub
 
@@ -301,12 +303,12 @@ hell:
     RandomNum = tmp
 End Function
 
-Function isWithin(cnt As Integer, v1, v2, Optional min As Integer = 0) As Boolean
+Function isWithin(cnt As Integer, v1, v2, Optional Min As Integer = 0) As Boolean
     
     Dim low As Long
     Dim high As Long
     
-    If v1 <= min Or v2 <= min Then Exit Function
+    If v1 <= Min Or v2 <= Min Then Exit Function
     
     If v1 = v2 Then
         isWithin = True
@@ -352,13 +354,15 @@ Function ado(sql) As Recordset
 End Function
 
 
-Sub ResetPB(newMax, caption)
+Sub ResetPB(newMax, Optional caption)
     With Form1
         If newMax < 1 Then newMax = 1
         .pb.Max = newMax
         .pb.value = 0
-        .Label1.caption = caption
-        .Label1.Refresh
+        If Len(caption) > 0 Then
+            .Label1.caption = caption
+            .Label1.Refresh
+        End If
     End With
 End Sub
 
@@ -366,7 +370,7 @@ Function GetAllElements(lv As ListView, Optional selOnly As Boolean = False) As 
     Dim ret() As String, i As Integer, tmp As String
     Dim li As ListItem
 
-    For i = 1 To lv.ColumnHeaders.Count
+    For i = 1 To lv.ColumnHeaders.count
         tmp = tmp & lv.ColumnHeaders(i).Text & vbTab
     Next
 
@@ -374,8 +378,12 @@ Function GetAllElements(lv As ListView, Optional selOnly As Boolean = False) As 
     push ret, String(50, "-")
 
     For Each li In lv.ListItems
-        tmp = li.Text & vbTab
-        For i = 1 To lv.ColumnHeaders.Count - 1
+        If selOnly Then
+            If li.Selected Then tmp = li.Text & vbTab
+        Else
+            tmp = li.Text & vbTab
+        End If
+        For i = 1 To lv.ColumnHeaders.count - 1
             If selOnly Then
                 If li.Selected Then tmp = tmp & li.SubItems(i) & vbTab
             Else
@@ -399,7 +407,7 @@ Function ReadFile(filename)
    ReadFile = temp
 End Function
 
-Function writeFile(path, it) As Boolean 'this one should be binary safe...
+Function WriteFile(path, it) As Boolean 'this one should be binary safe...
     On Error GoTo hell
     Dim b() As Byte, f As Long
     If FileExists(path) Then Kill path
@@ -408,10 +416,83 @@ Function writeFile(path, it) As Boolean 'this one should be binary safe...
     Open path For Binary As #f
     Put f, , b()
     Close f
-    writeFile = True
+    WriteFile = True
     Exit Function
-hell: writeFile = False
+hell: WriteFile = False
 End Function
+
+Function lowest(ParamArray values()) As Long
+   Dim Item
+   On Error Resume Next
+   lowest = &H7FFFFFFF
+   For Each Item In values
+      lowest = IIf(lowest > Item, Item, lowest)
+   Next
+   If lowest = &H7FFFFFFF Then lowest = -1
+End Function
+
+Function GetCompileTime(Optional ByVal exe As String) As String
+    
+    Dim f As Long, i As Integer
+    Dim stamp As Long, e_lfanew As Long
+    Dim base As Date, compiled As Date
+
+    On Error GoTo errExit
+    
+    If Len(exe) = 0 Then
+        exe = App.path & "\" & App.EXEName & ".exe"
+    End If
+    
+    FileLen exe 'throw error if not exist
+    
+    f = FreeFile
+    Open exe For Binary Access Read As f
+    Get f, , i
+    
+    If i <> &H5A4D Then GoTo errExit 'MZ check
+     
+    Get f, 60 + 1, e_lfanew
+    Get f, e_lfanew + 1, i
+    
+    If i <> &H4550 Then GoTo errExit 'PE check
+    
+    Get f, e_lfanew + 9, stamp
+    Close f
+    
+    base = DateSerial(1970, 1, 1)
+    compiled = DateAdd("s", stamp, base)
+    GetCompileTime = Format(compiled, "ddd, mmm d yyyy, h:nn:ss ")
+    
+    Exit Function
+errExit:
+    Close f
+        
+End Function
+
+'Function FirstOccurance(it, ByVal csvFind As String, ByRef outFoundVal) As Long
+'    If Len(csvFind) = 0 Then Exit Function
+'
+'    Dim find() As String, x, lowestOffset As Long, lowestIndex As Long, i As Long, a As Long
+'
+'    outFoundVal = Empty
+'    lowestOffset = MAX_LONG
+'    find = Split(csvFind, ",")
+'
+'    For i = 0 To UBound(find)
+'        If Len(find(i)) = 0 Then find(i) = ","
+'        a = InStr(1, it, find(i), vbTextCompare)
+'        If a > 0 And a < lowestOffset Then
+'            lowestOffset = a
+'            lowestIndex = i
+'        End If
+'    Next
+'
+'    If lowestOffset = MAX_LONG Then Exit Function
+'
+'    outFoundVal = find(lowestIndex)
+'    FirstOccurance = lowestOffset
+'
+'End Function
 
 '
 'Sub ExactCrcMatch()
@@ -472,4 +553,50 @@ End Function
 '    Next
 '
 'End Sub
+
+
+'Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (pDest As Any, pSource As Any, ByVal ByteLen As Long)
+'
+'Public Function Clone(c As Collection) As Collection
+'
+'    Dim cc As New Collection
+'    Dim i As Long
+'
+'    For i = 1 To c.Count
+'        'If IsObject(c(i)) Then Err.Raise 256, , "CollectionEx.Clone: Can not clone a collection with object references"
+'        cc.Add c(i), keyForIndex(c, i)
+'    Next
+'
+'    Set Clone = cc
+'End Function
+'
+'Public Function keyForIndex(c As Collection, index As Long) As String
+'    ' Get a key based on its index value.  Must be in range, or error.
+'    Dim i     As Long
+'    Dim Ptr   As Long
+'    Dim sKey  As String
+'    '
+'    If index < 1 Or index > c.Count Then
+'        Err.Raise 9
+'        Exit Function
+'    End If
+'    '
+'    If index <= c.Count / 2 Then                                ' Start from front.
+'        CopyMemory Ptr, ByVal ObjPtr(c) + &H18, 4               ' First item pointer of collection header.
+'        For i = 2 To index
+'            CopyMemory Ptr, ByVal Ptr + &H18, 4                 ' Next item pointer of collection item.
+'        Next i
+'    Else                                                        ' Start from end and go back.
+'        CopyMemory Ptr, ByVal ObjPtr(c) + &H1C, 4               ' Last item pointer of collection header.
+'        For i = c.Count - 1 To index Step -1
+'            CopyMemory Ptr, ByVal Ptr + &H14, 4                 ' Previous item pointer of collection item.
+'        Next i
+'    End If
+'    '
+'    i = StrPtr(sKey)                                            ' Save string pointer because we're going to borrow the string.
+'    CopyMemory ByVal VarPtr(sKey), ByVal Ptr + &H10, 4          ' Key string of collection item.
+'    keyForIndex = sKey                                          ' Move key into property's return.
+'    CopyMemory ByVal VarPtr(sKey), i, 4                         ' Put string pointer back to keep memory straight.
+'End Function
+
 
